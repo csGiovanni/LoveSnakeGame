@@ -6,7 +6,7 @@ end
 local click_debounce = false
 function love.update(dt)
     UpdateCircle(dt)
-    if (love.mouse.isDown(1)) then
+    if (love.mouse.isDown(2)) then
         if (click_debounce == false) then
             click_debounce = true
             AddCircle(love.mouse.getX(), love.mouse.getY())
