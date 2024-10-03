@@ -1,8 +1,11 @@
 require("Circle")
 
+-- Initialize Slots
 function love.load()
-    
+    AddSlot(500, 500)
+    AddSlot(600, 200)
 end
+
 local click_debounce = false
 function love.update(dt)
     UpdateCircle(dt)
@@ -18,5 +21,6 @@ end
 
 function love.draw()
     love.graphics.print("Hello World", 400, 300)
-    DrawCircle()
+    DrawSlots()
+    DrawCircles()
 end
