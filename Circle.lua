@@ -13,7 +13,7 @@ local function SnapCircle(circle, x, y, snap_radius)
     end
 end
 function DrawCircles()
-    love.graphics.print("MY TEST", 400, 200)
+    love.graphics.print("Left Click = Drag | Right Click = Place Circle", 100, 100)
     for i, circle in pairs(circles) do
         local cx = circle.x
         local cy = circle.y
@@ -28,7 +28,6 @@ function DrawCircles()
     
 end
 function DrawSlots()
-    love.graphics.print("MY TEST", 400, 200)
     for i, circle in pairs(slots) do
         local cx = circle.x
         local cy = circle.y
