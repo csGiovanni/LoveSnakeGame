@@ -18,7 +18,7 @@ function DrawCircles()
         local cx = circle.x
         local cy = circle.y
         if (circle == selected_circle) then
-            love.graphics.setColor(1, 0, 0, 1)
+            love.graphics.setColor(1, 0, 1, 1)
         else
             love.graphics.setColor(1, 1, 1, 1)
         end
