@@ -3,7 +3,10 @@
 local SolarPanel = {}
 local StaticImage = {}
 local Obstacles = {}
-local message = "" -- Message to display when an obstacle is placed incorrectly
+local popupImage = nil
+local showMessage = false -- Flag to control popup visibility
+local message = "" -- Message to display
+local messageTimer = 0 -- Timer to control how long the message is displayed
 
 function SolarPanel.load()
     -- Solar panel (draggable)
@@ -31,6 +34,9 @@ function SolarPanel.load()
     -- Randomly position static image at the top
     StaticImage.x = math.random(0, love.graphics.getWidth() - StaticImage.image:getWidth() * StaticImage.scaleX)
     StaticImage.y = 0 -- Positioned at the top of the screen
+
+    -- Load popup image
+    popupImage = love.graphics.newImage("popup.png") -- Ensure this image exists
 
     -- Initialize obstacles
     for i = 1, 3 do -- Example with 3 obstacles
@@ -114,8 +120,10 @@ function SolarPanel.update(dt)
 
                 -- Check if obstacle collides with the static image
                 if SolarPanel.checkObstacleCollision(obstacle) then
-                    -- Display a message saying you can't place it here
+                    -- Display the popup message
                     message = "You can't place this here!"
+                    showMessage = true
+
                     -- Return the obstacle to its original position
                     obstacle.x = obstacle.originalX
                     obstacle.y = obstacle.originalY
@@ -124,6 +132,15 @@ function SolarPanel.update(dt)
                     message = ""
                 end
             end
+        end
+    end
+
+    -- Update the message timer
+    if showMessage then
+        messageTimer = messageTimer + dt
+        if messageTimer >= 2 then -- Display for 2 seconds
+            showMessage = false
+            messageTimer = 0
         end
     end
 
@@ -185,19 +202,38 @@ function SolarPanel.checkObstacleCollisionPair(obstacle1, obstacle2)
 end
 
 function SolarPanel.draw()
-    -- Draw static image at the top first (so it is behind)
+    -- Draw static image
     love.graphics.draw(StaticImage.image, StaticImage.x, StaticImage.y, 0, StaticImage.scaleX, StaticImage.scaleY)
 
-    -- Draw draggable solar panel on top
-    love.graphics.draw(SolarPanel.image, SolarPanel.x, SolarPanel.y, 0, SolarPanel.scaleX, SolarPanel.scaleY)
+    -- Draw the solar panel if it's not frozen
+    if not SolarPanel.isFrozen then
+        love.graphics.draw(SolarPanel.image, SolarPanel.x, SolarPanel.y, 0, SolarPanel.scaleX, SolarPanel.scaleY)
+    else
+        -- Draw the solar panel at the static image's position when frozen
+        love.graphics.draw(SolarPanel.image, StaticImage.x, StaticImage.y, 0, SolarPanel.scaleX, SolarPanel.scaleY)
+    end
 
     -- Draw obstacles
-    for i, obstacle in ipairs(Obstacles) do
+    for _, obstacle in ipairs(Obstacles) do
         love.graphics.draw(obstacle.image, obstacle.x, obstacle.y, 0, obstacle.scaleX, obstacle.scaleY)
     end
 
-    -- Display message
-    love.graphics.print(message, 10, love.graphics.getHeight() - 20)
+    -- Show the popup message if applicable
+    if showMessage then
+        love.graphics.draw(popupImage, love.graphics.getWidth() / 2 - popupImage:getWidth() / 2, love.graphics.getHeight() / 2 - popupImage:getHeight() / 2)
+        
+        -- Set the font size and color for the message
+        local fontSize = 15 -- Set your desired font size here
+        local font = love.graphics.newFont(fontSize)
+        love.graphics.setFont(font)
+
+        -- Set the color to black
+        love.graphics.setColor(0, 0, 0) -- RGB values for black
+        love.graphics.print(message, love.graphics.getWidth() / 2 - 90, love.graphics.getHeight() / 2 - 10) -- Shifted text to the left
+        love.graphics.setColor(1, 1, 1) -- Reset color to white for other drawings
+    end
 end
+
+
 
 return SolarPanel
