@@ -1,25 +1,15 @@
-require("Circle")
+-- main.lua
 
--- Initialize Slots
+local SolarPanel = require("solar_panel")
+
 function love.load()
-    AddSlot(500, 500)
-    AddSlot(600, 200)
+    SolarPanel.load()
 end
 
-local click_debounce = false
 function love.update(dt)
-    UpdateCircle(dt)
-    if (love.mouse.isDown(2)) then
-        if (click_debounce == false) then
-            click_debounce = true
-            AddCircle(love.mouse.getX(), love.mouse.getY())
-        end
-    else
-        click_debounce = false
-    end
+    SolarPanel.update(dt)
 end
 
 function love.draw()
-    DrawSlots()
-    DrawCircles()
+    SolarPanel.draw()
 end
