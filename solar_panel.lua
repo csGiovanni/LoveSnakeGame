@@ -36,6 +36,7 @@ function SolarPanel.load()
     StaticImage.y = 0
 
     -- Initialize obstacles
+    Obstacles = {} -- Reset obstacles table
     for i = 1, 3 do
         local obstacle = {
             image = love.graphics.newImage("obstacle.png"),
@@ -51,8 +52,14 @@ function SolarPanel.load()
         obstacle.y = obstacle.originalY
         table.insert(Obstacles, obstacle)
     end
+
+    message = "" -- Reset message
 end
 
+-- Add a reset function to reinitialize the game
+function SolarPanel.reset()
+    SolarPanel.load()
+end
 
 function SolarPanel.update(dt)
     -- If the solar panel is frozen, don't allow movement
@@ -204,6 +211,7 @@ function SolarPanel.draw()
     end
 
     -- Display message
+    love.graphics.setColor(1, 1, 1) -- Ensure text is white
     love.graphics.print(message, 10, love.graphics.getHeight() - 20)
 end
 
