@@ -15,6 +15,11 @@ function Menu.load()
     -- Button dimensions
     Menu.buttonWidth = 300
     Menu.buttonHeight = 60
+
+    -- Load background music
+    Menu.bgMusic = love.audio.newSource("bg_music.mp3", "stream")
+    Menu.bgMusic:setLooping(true) -- Make the music loop
+    Menu.bgMusic:play() -- Start playing the music
 end
 
 function Menu.keypressed(key)
@@ -30,6 +35,9 @@ function Menu.keypressed(key)
         end
     elseif key == "return" then
         if Menu.selected == 1 then
+            -- Stop the background music before starting the game
+            Menu.bgMusic:stop()
+
             -- Trigger a function to switch to the game state
             return "start_game" -- Return a signal to start the game
         elseif Menu.selected == 2 then
@@ -37,6 +45,7 @@ function Menu.keypressed(key)
         end
     end
 end
+
 
 function Menu.draw()
     -- Draw background
