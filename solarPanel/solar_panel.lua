@@ -9,6 +9,10 @@ local message = "" -- Message to display
 local messageTimer = 0 -- Timer to control how long the message is displayed
 
 function SolarPanel.load()
+    -- Load game music
+    SolarPanel.gameMusic = love.audio.newSource("game_music.mp3", "stream")
+    SolarPanel.gameMusic:setLooping(true) -- Set the music to loop
+    SolarPanel.gameMusic:play() -- Play the music
     -- Solar panel (draggable)
     SolarPanel.image = love.graphics.newImage("solarPanel.png")
     SolarPanel.scaleX = 0.3
