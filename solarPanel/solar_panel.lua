@@ -9,6 +9,8 @@ local message = "" -- Message to display
 local messageTimer = 0 -- Timer to control how long the message is displayed
 
 function SolarPanel.load()
+    -- Load Background
+    SolarPanel.background = love.graphics.newImage("background.png")
     -- Solar panel (draggable)
     SolarPanel.image = love.graphics.newImage("solarPanel.png")
     SolarPanel.scaleX = 0.3
@@ -26,14 +28,56 @@ function SolarPanel.load()
     SolarPanel.isDragging = false
     SolarPanel.isFrozen = false -- New flag to freeze movement after collision
 
+    -- Initialize Grid
+    SolarPanel.grid = {}
+    local x_size = 10
+    local y_size = 4
+    -- Record the size of the grid
+    SolarPanel.grid.x_size = x_size
+    SolarPanel.grid.y_size = y_size
+    -- Record where the grid has been placed
+    SolarPanel.grid.x_offset = 100
+    SolarPanel.grid.y_offset = 100
+    -- Record spacing between each cell
+    SolarPanel.grid.spacing = 60
+    -- Record how big to draw each cell
+    SolarPanel.grid.cell_size = 50
+    for i = 1, x_size do
+        SolarPanel.grid[i] = {}
+        for j = 1, y_size do
+            -- Create information for each grid cell
+            SolarPanel.grid[i][j] = {}
+            local grid_cell_info = SolarPanel.grid[i][j]
+            -- To record if a solar panel is occupying a cell
+            grid_cell_info.occupied = false;
+        end
+    end
+
+    -- Initialize Solar Panels and the selected panel
+    SolarPanel.panelImage = love.graphics.newImage("solarPanel2.png")
+    SolarPanel.panels = {}
+    SolarPanel.selected = {}
+    for i = 1, 5 do
+        local panel = {}
+        panel.x = 50 + i * 100
+        panel.y = 400
+        panel.rotation = 0
+        panel.xScale = 0.22
+        panel.yScale = 0.21
+        panel.rotateDebounce = true
+        table.insert(SolarPanel.panels, panel)
+    end
+
     -- Static image (random x along the top)
     StaticImage.image = love.graphics.newImage("panelPosition.png")
     StaticImage.scaleX = 0.3
     StaticImage.scaleY = 0.3
 
-    -- Randomly position static image at the top
-    StaticImage.x = math.random(0, love.graphics.getWidth() - StaticImage.image:getWidth() * StaticImage.scaleX)
-    StaticImage.y = 0 -- Positioned at the top of the screen
+    -- Randomly position static image at the bottom
+    -- Random seems to generate the same output each time
+    -- StaticImage.x = math.random(0, love.graphics.getWidth() - StaticImage.image:getWidth() * StaticImage.scaleX)
+    StaticImage.x = 50
+    StaticImage.y = 420 -- Positioned at the bottom of the screen
 
     -- Load popup image
     popupImage = love.graphics.newImage("popup.png") -- Ensure this image exists
@@ -44,8 +88,8 @@ function SolarPanel.load()
             image = love.graphics.newImage("obstacle.png"), -- Ensure this image exists
             scaleX = 0.3,
             scaleY = 0.3,
-            originalX = math.random(0, love.graphics.getWidth() - 64),
-            originalY = math.random(100, love.graphics.getHeight() - 100),
+            originalX = math.random(100, 200),--love.graphics.getWidth() - 64),
+            originalY = 500,--math.random(100, love.graphics.getHeight() - 100),
             x = 0,
             y = 0,
             isDragging = false
@@ -61,6 +105,7 @@ function SolarPanel.update(dt)
     if SolarPanel.isFrozen then
         return
     end
+    SolarPanel.updatePanels()
 
     -- Draggable solar panel update
     if love.mouse.isDown(1) then
@@ -202,6 +247,9 @@ function SolarPanel.checkObstacleCollisionPair(obstacle1, obstacle2)
 end
 
 function SolarPanel.draw()
+    love.graphics.draw(SolarPanel.background, 0, 0)
+    SolarPanel.drawGrid()
+    SolarPanel.drawPanels()
     -- Draw static image
     love.graphics.draw(StaticImage.image, StaticImage.x, StaticImage.y, 0, StaticImage.scaleX, StaticImage.scaleY)
 
@@ -234,6 +282,89 @@ function SolarPanel.draw()
     end
 end
 
+function SolarPanel.drawGrid()
+    -- Get Grid Information
+    local x_offset = SolarPanel.grid.x_offset
+    local y_offset = SolarPanel.grid.y_offset
+    local x_size = SolarPanel.grid.x_size
+    local y_size = SolarPanel.grid.y_size
+    local cell_size = SolarPanel.grid.cell_size
+    local spacing = SolarPanel.grid.spacing
+    
+    -- Draw Each Cell
+    love.graphics.setColor(0.7, 0.7, 0.7, 1)
+    for i = 0, x_size - 1 do
+        for j = 0, y_size - 1 do
+            love.graphics.rectangle("fill",
+            x_offset + i * spacing - cell_size / 2,
+            y_offset + j * spacing - cell_size / 2,
+            cell_size, cell_size)
+        end
+    end
+    love.graphics.setColor(1, 1, 1, 1) -- Reset color to white for other drawings
+end
+local function getPanelXYOffset(panel) 
+    return {
+        x = SolarPanel.panelImage:getWidth() / 2 * panel.xScale,
+        y = SolarPanel.panelImage:getHeight() / 2 * panel.yScale
+    }
+end
+function SolarPanel.drawPanels()
+    -- Draw each panel
+    for i, panel in pairs(SolarPanel.panels) do
+        local xy = getPanelXYOffset(panel) 
+        love.graphics.draw(SolarPanel.panelImage,
+        panel.x - xy.x, panel.y - xy.y,
+        math.pi / 2 * panel.rotation, panel.xScale, panel.yScale)
+    end
+    
+end
+function SolarPanel.updatePanels()
+    local mouseDown = love.mouse.isDown(1)
+
+    if (not mouseDown) then
+        SolarPanel.selected = nil
+        return
+    end
+
+    -- If a panel is selected, move with mouse and snap to slots
+    if (SolarPanel.selected ~= nil) then
+        local x = love.mouse.getX()
+        local y = love.mouse.getY()
+        SolarPanel.selected.x = x;
+        SolarPanel.selected.y = y;
+        if (love.keyboard.isDown('r') and SolarPanel.selected.rotateDebounce) then
+            SolarPanel.selected.rotateDebounce = false
+            SolarPanel.selected.rotation = 1 - SolarPanel.selected.rotation
+        elseif (not love.keyboard.isDown('r') and not SolarPanel.selected.rotateDebounce) then
+            SolarPanel.selected.rotateDebounce = true
+        end
+        return;
+
+        -- If inside a slot, Snap (checking handled inside the SnapCircle function)
+        -- for i, slot in pairs(slots) do
+        --     SnapPanel(selected_circle, slot.x, slot.y, 50);
+        -- end
+    end
+
+    -- Iterate through each spawned circle to determine if they should be selected and move
+    for i, panel in pairs(SolarPanel.panels) do
+        -- Check if the mouse is inside a circle
+        local x = love.mouse.getX()
+        local y = love.mouse.getY()
+        local cx = panel.x
+        local cy = panel.y
+        local dx = cx - x
+        local dy = cy - y
+        -- Distance Squared instead of Distance to save on performance
+        -- If there is already a selected circle, do not select another
+        if ((dx * dx + dy * dy) < (40 * 40) and selected_circle == nil) then
+            SolarPanel.selected = panel
+            break;
+        end
+    end
+
+end
 
 
 return SolarPanel
