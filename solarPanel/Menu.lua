@@ -1,7 +1,7 @@
 local Menu = {}
 
 function Menu.load()
-    -- Load the background image
+    -- Load the background image and set the music
     Menu.background = love.graphics.newImage("bg.jpg")
     
     -- Set fonts with increased size
@@ -9,7 +9,7 @@ function Menu.load()
     Menu.buttonFont = love.graphics.newFont(36) -- Larger button font
 
     -- Menu options
-    Menu.options = { "Play", "Exit" }
+    Menu.options = { "Play", "Settings", "Exit" }
     Menu.selected = 1 -- Track the currently selected option
 
     -- Button dimensions
@@ -20,6 +20,7 @@ function Menu.load()
     Menu.bgMusic = love.audio.newSource("bg_music.mp3", "stream")
     Menu.bgMusic:setLooping(true) -- Make the music loop
     Menu.bgMusic:play() -- Start playing the music
+    
 end
 
 function Menu.keypressed(key)
@@ -34,18 +35,50 @@ function Menu.keypressed(key)
             Menu.selected = #Menu.options
         end
     elseif key == "return" then
-        if Menu.selected == 1 then
-            -- Stop the background music before starting the game
-            Menu.bgMusic:stop()
+        return Menu.activateOption(Menu.selected)
+    end
+end
 
-            -- Trigger a function to switch to the game state
-            return "start_game" -- Return a signal to start the game
-        elseif Menu.selected == 2 then
-            love.event.quit() -- Exit the game
+function Menu.mousepressed(x, y, button)
+    if button == 1 then -- Left mouse button
+        for i, option in ipairs(Menu.options) do
+            local buttonX = love.graphics.getWidth() / 2 - Menu.buttonWidth / 2
+            local buttonY = 200 + (i - 1) * 70
+
+            -- Check if the mouse click is within the button's boundaries
+            if x >= buttonX and x <= buttonX + Menu.buttonWidth and
+               y >= buttonY and y <= buttonY + Menu.buttonHeight then
+                Menu.selected = i -- Set the selected option
+                return Menu.activateOption(i) -- Simulate pressing "return" to trigger the option
+            end
         end
     end
 end
 
+function Menu.mousemoved(x, y)
+    for i, option in ipairs(Menu.options) do
+        local buttonX = love.graphics.getWidth() / 2 - Menu.buttonWidth / 2
+        local buttonY = 200 + (i - 1) * 70
+
+        -- Check if the mouse is within the button's boundaries
+        if x >= buttonX and x <= buttonX + Menu.buttonWidth and
+           y >= buttonY and y <= buttonY + Menu.buttonHeight then
+            Menu.selected = i -- Highlight the button under the mouse
+        end
+    end
+end
+
+function Menu.activateOption(selected)
+    if selected == 1 then
+        -- Stop the background music before starting the game
+        Menu.bgMusic:stop()
+        return "start_game" -- Return signal to start the game
+    elseif selected == 2 then
+        return "open_settings" -- Return signal to open the settings screen
+    elseif selected == 3 then
+        love.event.quit() -- Exit the game
+    end
+end
 
 function Menu.draw()
     -- Draw background
