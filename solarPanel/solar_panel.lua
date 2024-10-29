@@ -11,17 +11,17 @@ local messageTimer = 0 -- Timer to control how long the message is displayed
 function SolarPanel.load()
     -- Load background image
     SolarPanel.background = love.graphics.newImage("background.png")
-    -- Load game music
-    SolarPanel.gameMusic = love.audio.newSource("game_music.mp3", "stream")
-    SolarPanel.gameMusic:setLooping(true) -- Set the music to loop
-    SolarPanel.gameMusic:play() -- Play the music
+   -- Load the game background music
+   SolarPanel.bgMusic = love.audio.newSource("game_music.mp3", "stream") -- Ensure this file exists
+   SolarPanel.bgMusic:setLooping(true) -- Make the music loop
+   SolarPanel.bgMusic:play() -- Start playing the music
     -- Solar panel (draggable)
     SolarPanel.image = love.graphics.newImage("solarPanel.png")
     SolarPanel.scaleX = 0.3
     SolarPanel.scaleY = 0.3
 
     -- Initial position (random x along the bottom)
-    SolarPanel.originalX = math.random(0, love.graphics.getWidth() - SolarPanel.image:getWidth() * SolarPanel.scaleX)
+    SolarPanel.originalX = 600
     SolarPanel.originalY = love.graphics.getHeight() - SolarPanel.image:getHeight() * SolarPanel.scaleY
 
     -- Current position (used for dragging)
