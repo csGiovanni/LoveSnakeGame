@@ -43,7 +43,7 @@ function SolarPanel.load()
     SolarPanel.grid.x_offset = 100
     SolarPanel.grid.y_offset = 100
     -- Record spacing between each cell
-    SolarPanel.grid.spacing = 60
+    SolarPanel.grid.spacing = 52
     -- Record how big to draw each cell
     SolarPanel.grid.cell_size = 50
     for i = 1, x_size do
@@ -60,7 +60,7 @@ function SolarPanel.load()
     -- Initialize Solar Panels and the selected panel
     SolarPanel.panelImage = love.graphics.newImage("solarPanel2.png")
     SolarPanel.panels = {}
-    SolarPanel.selected = {}
+    SolarPanel.selected = nil
     for i = 1, 5 do
         local panel = {}
         panel.x = 50 + i * 100
@@ -69,9 +69,23 @@ function SolarPanel.load()
         panel.xScale = 0.22
         panel.yScale = 0.21
         panel.rotateDebounce = true
+        panel.tag = "panel"
         table.insert(SolarPanel.panels, panel)
     end
-
+    SolarPanel.wires = {}
+    SolarPanel.wire_xSize = SolarPanel.grid.cell_size - 2
+    SolarPanel.wire_ySize = SolarPanel.grid.cell_size / 4
+    for i = 1, 5 do
+        local wire = {}
+        wire.x = 50 + i * 100
+        wire.y = 500
+        wire.rotation = 0
+        wire.xScale = 0.22
+        wire.yScale = 0.21
+        wire.rotateDebounce = true
+        wire.tag = "wire"
+        table.insert(SolarPanel.wires, wire)
+    end
     -- Static image (random x along the top)
     StaticImage.image = love.graphics.newImage("panelPosition.png")
     StaticImage.scaleX = 0.3
@@ -254,6 +268,7 @@ function SolarPanel.draw()
     love.graphics.draw(SolarPanel.background, 0, 0)
     SolarPanel.drawGrid()
     SolarPanel.drawPanels()
+    SolarPanel.drawWires()
     -- Draw static image
     love.graphics.draw(StaticImage.image, StaticImage.x, StaticImage.y, 0, StaticImage.scaleX, StaticImage.scaleY)
 
@@ -307,31 +322,103 @@ function SolarPanel.drawGrid()
     end
     love.graphics.setColor(1, 1, 1, 1) -- Reset color to white for other drawings
 end
+-- For positioning the image correctly
 local function getPanelXYOffset(panel) 
     return {
-        x = SolarPanel.panelImage:getWidth() / 2 * panel.xScale,
-        y = SolarPanel.panelImage:getHeight() / 2 * panel.yScale
+        x = SolarPanel.panelImage:getWidth() / 2,
+        y = SolarPanel.panelImage:getHeight() / 2
     }
 end
 function SolarPanel.drawPanels()
     -- Draw each panel
     for i, panel in pairs(SolarPanel.panels) do
         local xy = getPanelXYOffset(panel) 
-        love.graphics.draw(SolarPanel.panelImage,
-        panel.x - xy.x, panel.y - xy.y,
-        math.pi / 2 * panel.rotation, panel.xScale, panel.yScale)
+        love.graphics.draw(SolarPanel.panelImage, -- Image to draw
+        panel.x, panel.y, -- Where to draw
+        math.pi / 2 * panel.rotation, panel.xScale, panel.yScale, -- Rotation and Scale
+        xy.x, xy.y) -- Image ofset
     end
     
+end
+local function drawRotatedRectangle(mode, x, y, width, height, angle)
+	-- We cannot rotate the rectangle directly, but we
+	-- can move and rotate the coordinate system.
+	love.graphics.push()
+	love.graphics.translate(x, y)
+	love.graphics.rotate(angle)
+	-- love.graphics.rectangle(mode, 0, 0, width, height) -- origin in the top left corner
+	love.graphics.rectangle(mode, -width/2, -height/2, width, height) -- origin in the middle
+	love.graphics.pop()
+end
+function SolarPanel.drawWires()
+    -- Draw each wire
+    for i, wire in pairs(SolarPanel.wires) do
+        local x_size = SolarPanel.wire_xSize
+        local y_size = SolarPanel.wire_ySize
+        love.graphics.setColor(0.3, 0.3, 0.3) -- RGB values for black
+        drawRotatedRectangle("fill", wire.x, wire.y, x_size, y_size, math.pi / 2 * wire.rotation)
+        love.graphics.setColor(1, 1, 1) -- RGB values for white
+    end
+end
+local function SnapToGrid(panel)
+    local x_size = SolarPanel.grid.x_size
+    local y_size = SolarPanel.grid.y_size
+    local x_offset = SolarPanel.grid.x_offset
+    local y_offset = SolarPanel.grid.y_offset
+    local spacing = SolarPanel.grid.spacing
+    local cell_size = SolarPanel.grid.cell_size
+
+    -- Translate coordinates to origin coordinates to make calculations easier
+    -- a.k.a pretend the grid at the top left of the screen
+    local nx = panel.x - x_offset
+    local ny = panel.y - y_offset
+    -- If outside the grid, do not snap
+    if (nx < -cell_size / 2  or nx > spacing * x_size + (cell_size - 1) / 2  or
+        ny < -cell_size / 2  or ny > spacing * y_size + (cell_size - 1) / 2) then
+        return
+    end
+
+    -- Snap panels and wires differently
+    local offsetx, offsety
+    if panel.tag == "panel" then
+        -- Account for size and rotation of panel
+        local xy = getPanelXYOffset(panel)
+        if (panel.rotation == 0) then
+            offsetx = xy.x * panel.xScale / 2
+            offsety = 0
+        else
+            offsetx = 0
+            offsety = xy.y * panel.yScale / 2
+        end
+    else
+        -- Place wire in the middle of the cell
+        offsety = 0
+        offsetx = 0
+    end
+
+    -- let midpoint = nx + cell_size/2          | To account for size of cell
+    -- let snapped = nx - midpoint % spacing    | to snap to the grid
+    -- let on_grid = snapped + x_offset         | To reposition back to where grid is
+    -- let in_center = on_grid + cell_size/2    | To put in center of cell
+    -- let positioned = in_center - offsetx     | To reposition depending on if solar panel or wire, and rotation
+
+    panel.x = (nx - (nx + cell_size/2) % spacing) + x_offset + cell_size/2 - offsetx
+    panel.y = (ny - (ny + cell_size/2) % spacing) + y_offset + cell_size/2 - offsety
 end
 function SolarPanel.updatePanels()
     local mouseDown = love.mouse.isDown(1)
 
     if (not mouseDown) then
-        SolarPanel.selected = nil
+        if (SolarPanel.selected ~= nil) then
+            -- Could be wire or panel
+            SnapToGrid(SolarPanel.selected);
+            SolarPanel.selected = nil
+        end
+        
         return
     end
 
-    -- If a panel is selected, move with mouse and snap to slots
+    -- If a panel or wire is selected, move with mouse and snap to slots
     if (SolarPanel.selected ~= nil) then
         local x = love.mouse.getX()
         local y = love.mouse.getY()
@@ -344,11 +431,6 @@ function SolarPanel.updatePanels()
             SolarPanel.selected.rotateDebounce = true
         end
         return;
-
-        -- If inside a slot, Snap (checking handled inside the SnapCircle function)
-        -- for i, slot in pairs(slots) do
-        --     SnapPanel(selected_circle, slot.x, slot.y, 50);
-        -- end
     end
 
     -- Iterate through each spawned circle to determine if they should be selected and move
@@ -362,8 +444,29 @@ function SolarPanel.updatePanels()
         local dy = cy - y
         -- Distance Squared instead of Distance to save on performance
         -- If there is already a selected circle, do not select another
-        if ((dx * dx + dy * dy) < (40 * 40) and selected_circle == nil) then
+        if ((dx * dx + dy * dy) < (40 * 40) and SolarPanel.selected == nil) then
             SolarPanel.selected = panel
+            break;
+        end
+    end
+
+    -- If we haven't selected a panel, iterate and select a wire
+    if (SolarPanel.selected ~= nil) then
+        return
+    end
+
+    for i, wire in pairs(SolarPanel.wires) do
+        -- Check if the mouse is inside a circle
+        local x = love.mouse.getX()
+        local y = love.mouse.getY()
+        local cx = wire.x
+        local cy = wire.y
+        local dx = cx - x
+        local dy = cy - y
+        -- Distance Squared instead of Distance to save on performance
+        -- If there is already a selected circle, do not select another
+        if ((dx * dx + dy * dy) < (40 * 40) and SolarPanel.selected == nil) then
+            SolarPanel.selected = wire
             break;
         end
     end
