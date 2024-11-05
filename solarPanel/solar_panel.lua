@@ -52,8 +52,8 @@ function SolarPanel.load()
             -- Create information for each grid cell
             SolarPanel.grid[i][j] = {}
             local grid_cell_info = SolarPanel.grid[i][j]
-            -- To record if a solar panel is occupying a cell
-            grid_cell_info.occupied = false;
+            -- To record what is occupying the cell
+            grid_cell_info.occupant = nil;
         end
     end
 
@@ -359,6 +359,39 @@ function SolarPanel.drawWires()
         drawRotatedRectangle("fill", wire.x, wire.y, x_size, y_size, math.pi / 2 * wire.rotation)
         love.graphics.setColor(1, 1, 1) -- RGB values for white
     end
+    local x = love.mouse.getX()
+    local y = love.mouse.getY()
+    local ix, iy = CoordsToGridIndices(x, y, true)
+
+    love.graphics.setColor(0, 0, 0) -- RGB values for black
+    love.graphics.print("X: "..ix..", Y:"..iy, 0, 0)
+    love.graphics.setColor(1, 1, 1) -- Reset color to white for other drawings
+end
+
+function CoordsToGridIndices(x, y, account_for_offset)
+    local x_size = SolarPanel.grid.x_size
+    local y_size = SolarPanel.grid.y_size
+    local x_offset = SolarPanel.grid.x_offset
+    local y_offset = SolarPanel.grid.y_offset
+    local spacing = SolarPanel.grid.spacing
+    local cell_size = SolarPanel.grid.cell_size
+    if account_for_offset then
+        x = x - x_offset
+        y = y - y_offset
+    end
+    -- To account for detection depending on cell size. e.g the cell may be "out of bounds"
+    x = x + cell_size / 2
+    y = y + cell_size / 2
+
+    local index_x = math.floor(x / spacing) + 1
+    local index_y = math.floor(y / spacing) + 1
+
+    if (index_x < 1 or index_x > x_size or
+        index_y < 1 or index_y > y_size) then
+        index_x = -1
+        index_y = -1
+    end
+    return index_x, index_y
 end
 local function SnapToGrid(panel)
     local x_size = SolarPanel.grid.x_size
@@ -372,9 +405,9 @@ local function SnapToGrid(panel)
     -- a.k.a pretend the grid at the top left of the screen
     local nx = panel.x - x_offset
     local ny = panel.y - y_offset
+    local grid_x, grid_y = CoordsToGridIndices(nx, ny)
     -- If outside the grid, do not snap
-    if (nx < -cell_size / 2  or nx > spacing * x_size + (cell_size - 1) / 2  or
-        ny < -cell_size / 2  or ny > spacing * y_size + (cell_size - 1) / 2) then
+    if (grid_x == -1 or grid_y == -1) then
         return
     end
 
@@ -395,15 +428,68 @@ local function SnapToGrid(panel)
         offsety = 0
         offsetx = 0
     end
+    -- Snap to grid
+    panel.x = (grid_x - 1) * spacing + x_offset - offsetx
+    panel.y = (grid_y - 1) * spacing + y_offset - offsety
+end
+local function PlacePanel(panel)
+    local x = love.mouse.getX()
+    local y = love.mouse.getY()
+    local grid_x, grid_y = CoordsToGridIndices(x, y, true)
+    if (grid_x == -1 or grid_y == -1) then
+        return
+    end
 
-    -- let midpoint = nx + cell_size/2          | To account for size of cell
-    -- let snapped = nx - midpoint % spacing    | to snap to the grid
-    -- let on_grid = snapped + x_offset         | To reposition back to where grid is
-    -- let in_center = on_grid + cell_size/2    | To put in center of cell
-    -- let positioned = in_center - offsetx     | To reposition depending on if solar panel or wire, and rotation
+    local occupant = SolarPanel.grid[grid_x][grid_y].occupant
+    if occupant == nil then
+        -- Panel requires special case
+        if (panel.tag == "panel") then
+            -- Set neighbor grid cell occupant to panel as well
+            if (panel.rotation == 0) then
+                -- Handle case of panel being off grid and colliding panel
+                if (grid_x == 1 or SolarPanel.grid[grid_x - 1][grid_y].occupant ~= nil) then
+                    return
+                end
+                SolarPanel.grid[grid_x - 1][grid_y].occupant = panel
+            else
+                 -- Handle case of panel being off grid and colliding panel
+                if (grid_y == 1 or SolarPanel.grid[grid_x][grid_y - 1].occupant ~= nil) then
+                    return
+                end
+                SolarPanel.grid[grid_x][grid_y - 1].occupant = panel
+            end
+        end
 
-    panel.x = (nx - (nx + cell_size/2) % spacing) + x_offset + cell_size/2 - offsetx
-    panel.y = (ny - (ny + cell_size/2) % spacing) + y_offset + cell_size/2 - offsety
+
+        SolarPanel.grid[grid_x][grid_y].occupant = panel
+        SnapToGrid(panel)
+    end
+end
+local function TrySelect(selectable)
+    -- Check if the mouse is inside a circle
+    local x = love.mouse.getX()
+    local y = love.mouse.getY()
+    local cx = selectable.x
+    local cy = selectable.y
+    local dx = cx - x
+    local dy = cy - y
+    -- Distance Squared instead of Distance to save on performance
+    -- If there is already a selected circle, do not select another
+    if ((dx * dx + dy * dy) < (40 * 40) and SolarPanel.selected == nil) then
+        SolarPanel.selected = selectable
+
+        local x_size = SolarPanel.grid.x_size
+        local y_size = SolarPanel.grid.y_size
+        for i = 1, x_size do
+            for j = 1, y_size do
+                if SolarPanel.grid[i][j].occupant == selectable then
+                    SolarPanel.grid[i][j].occupant = nil
+                end
+            end
+        end
+        return true
+    end
+    return false
 end
 function SolarPanel.updatePanels()
     local mouseDown = love.mouse.isDown(1)
@@ -411,7 +497,7 @@ function SolarPanel.updatePanels()
     if (not mouseDown) then
         if (SolarPanel.selected ~= nil) then
             -- Could be wire or panel
-            SnapToGrid(SolarPanel.selected);
+            PlacePanel(SolarPanel.selected);
             SolarPanel.selected = nil
         end
         
@@ -433,43 +519,27 @@ function SolarPanel.updatePanels()
         return;
     end
 
-    -- Iterate through each spawned circle to determine if they should be selected and move
-    for i, panel in pairs(SolarPanel.panels) do
-        -- Check if the mouse is inside a circle
-        local x = love.mouse.getX()
-        local y = love.mouse.getY()
-        local cx = panel.x
-        local cy = panel.y
-        local dx = cx - x
-        local dy = cy - y
-        -- Distance Squared instead of Distance to save on performance
-        -- If there is already a selected circle, do not select another
-        if ((dx * dx + dy * dy) < (40 * 40) and SolarPanel.selected == nil) then
-            SolarPanel.selected = panel
-            break;
+    -- Iterate through each wireto determine if they should be selected and move
+    for i, wire in pairs(SolarPanel.wires) do
+        if (TrySelect(wire)) then
+            break
         end
     end
+    
 
-    -- If we haven't selected a panel, iterate and select a wire
+
+    -- If we haven't selected a wire, iterate and select a panel
     if (SolarPanel.selected ~= nil) then
         return
     end
 
-    for i, wire in pairs(SolarPanel.wires) do
-        -- Check if the mouse is inside a circle
-        local x = love.mouse.getX()
-        local y = love.mouse.getY()
-        local cx = wire.x
-        local cy = wire.y
-        local dx = cx - x
-        local dy = cy - y
-        -- Distance Squared instead of Distance to save on performance
-        -- If there is already a selected circle, do not select another
-        if ((dx * dx + dy * dy) < (40 * 40) and SolarPanel.selected == nil) then
-            SolarPanel.selected = wire
-            break;
+    for i, panel in pairs(SolarPanel.panels) do
+        if (TrySelect(panel)) then
+            break
         end
     end
+
+
 
 end
 
