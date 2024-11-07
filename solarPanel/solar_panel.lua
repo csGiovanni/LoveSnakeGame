@@ -66,8 +66,8 @@ function SolarPanel.load()
         panel.x = 50 + i * 100
         panel.y = 400
         panel.rotation = 0
-        panel.xScale = 0.22
-        panel.yScale = 0.21
+        panel.xScale = 1
+        panel.yScale = 1
         panel.rotateDebounce = true
         panel.tag = "panel"
         table.insert(SolarPanel.panels, panel)
