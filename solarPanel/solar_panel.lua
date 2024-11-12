@@ -7,6 +7,14 @@ local popupImage = nil
 local showMessage = false -- Flag to control popup visibility
 local message = "" -- Message to display
 local messageTimer = 0 -- Timer to control how long the message is displayed
+-- Define the target positions for wires and solar panels
+local wirePositions = {
+    {4, 2}, {7, 2}, {10, 2}, {2, 3}, {5, 3}
+}
+
+local solarPanelPositions = {
+    {2, 2, 3, 2}, {5, 2, 6, 2}, {8, 2, 9, 2}, {3, 3, 4, 3}, {6, 3, 7, 3}
+}
 
 function SolarPanel.load()
     -- Load background image
@@ -116,6 +124,36 @@ function SolarPanel.load()
         obstacle.y = obstacle.originalY
         table.insert(Obstacles, obstacle)
     end
+    -- Load the lightoff image
+    StaticImage.lightOff = love.graphics.newImage("lightoff.png")
+    StaticImage.lightOffScaleX = 1.5
+    StaticImage.lightOffScaleY = 1.5
+
+    -- Position of the lightoff image (right of the grid)
+    StaticImage.lightOffX = SolarPanel.grid.x_offset + (SolarPanel.grid.x_size * SolarPanel.grid.cell_size) + 10
+    StaticImage.lightOffY = SolarPanel.grid.y_offset
+    -- Load the lighton image
+StaticImage.lightOn = love.graphics.newImage("lighton.png") -- Ensure this image exists
+StaticImage.isLightOn = false -- Flag to track if the light is on
+
+-- Button properties
+StaticImage.buttonImage = love.graphics.newImage("button.png") -- Load the button image
+StaticImage.buttonX = 600 -- X position of the button
+StaticImage.buttonY = 200 -- Y position of the button
+StaticImage.buttonWidth = StaticImage.buttonImage:getWidth()
+StaticImage.buttonHeight = StaticImage.buttonImage:getHeight()
+-- Load a font
+local fontSize = 20
+StaticImage.font = love.graphics.newFont(fontSize)
+-- In the SolarPanel.load function, initialize the timer for light off display
+
+StaticImage.lightOffTimer = 0 -- Timer for light off display
+
+StaticImage.showSchoolLightOff = false -- Flag to control visibility of school light off image
+-- Load the school light images
+StaticImage.schoolLightOn = love.graphics.newImage("schoollight.png") -- Ensure this image exists
+StaticImage.schoolLightOff = love.graphics.newImage("schoollightOff.jpg") -- Ensure this image exists
+StaticImage.showSchoolLight = false -- Flag to control visibility of school light images
 end
 
 function SolarPanel.update(dt)
@@ -223,6 +261,25 @@ function SolarPanel.update(dt)
             end
         end
     end
+    -- Check for space key press
+    if love.keyboard.isDown("space") then
+        SolarPanel.checkPlacement()
+    end
+ -- Check for button click
+ local mouseX, mouseY = love.mouse.getPosition()
+ if love.mouse.isDown(1) and 
+    mouseX >= StaticImage.buttonX and mouseX <= StaticImage.buttonX + StaticImage.buttonWidth and
+    mouseY >= StaticImage.buttonY and mouseY <= (StaticImage.buttonY + StaticImage.buttonHeight)-300 then
+     SolarPanel.checkConnections()
+ end
+
+ -- Handle light off display timer
+ if not StaticImage.isLightOn and StaticImage.lightOffTimer then
+     StaticImage.lightOffTimer = StaticImage.lightOffTimer - dt
+     if StaticImage.lightOffTimer <= 0 then
+         StaticImage.lightOffTimer = nil -- Reset timer
+     end
+ end
 end
 
 -- Function to check collision between solar panel and static image
@@ -269,8 +326,16 @@ function SolarPanel.draw()
     SolarPanel.drawGrid()
     SolarPanel.drawPanels()
     SolarPanel.drawWires()
-    -- Draw static image
+
+    -- Draw static image (panel position)
     love.graphics.draw(StaticImage.image, StaticImage.x, StaticImage.y, 0, StaticImage.scaleX, StaticImage.scaleY)
+ 
+    -- Draw the light image based on the state
+    if StaticImage.isLightOn then
+        love.graphics.draw(StaticImage.lightOn, StaticImage.lightOffX, StaticImage.lightOffY, 0, StaticImage.lightOffScaleX, StaticImage.lightOffScaleY)
+    else
+        love.graphics.draw(StaticImage.lightOff, StaticImage.lightOffX, StaticImage.lightOffY, 0, StaticImage.lightOffScaleX, StaticImage.lightOffScaleY)
+    end
 
     -- Draw the solar panel if it's not frozen
     if not SolarPanel.isFrozen then
@@ -288,18 +353,45 @@ function SolarPanel.draw()
     -- Show the popup message if applicable
     if showMessage then
         love.graphics.draw(popupImage, love.graphics.getWidth() / 2 - popupImage:getWidth() / 2, love.graphics.getHeight() / 2 - popupImage:getHeight() / 2)
-        
+
         -- Set the font size and color for the message
         local fontSize = 15 -- Set your desired font size here
         local font = love.graphics.newFont(fontSize)
-        love.graphics.setFont(font)
-
-        -- Set the color to black
-        love.graphics.setColor(0, 0, 0) -- RGB values for black
-        love.graphics.print(message, love.graphics.getWidth() / 2 - 90, love.graphics.getHeight() / 2 - 10) -- Shifted text to the left
-        love.graphics.setColor(1, 1, 1) -- Reset color to white for other drawings
+        love.graphics .setFont(font)
+        love.graphics.setColor(1, 1, 1) -- Set color to white
+        love.graphics.print(message, love.graphics.getWidth() / 2 - font:getWidth(message) / 2, love.graphics.getHeight() / 2 - font:getHeight(message) / 2)
     end
+
+     -- Draw the button
+     local buttonWidth = 150
+     local buttonHeight = 50
+     local buttonX = StaticImage.buttonX
+     local buttonY = StaticImage.buttonY
+ 
+     -- Draw a rectangle for the button
+     love.graphics.setColor(0.5, 0.5, 0.5) -- Set button color (gray)
+     love.graphics.rectangle("fill", buttonX, buttonY, buttonWidth, buttonHeight)
+ 
+     -- Draw the text in the center of the button
+     love.graphics.setFont(StaticImage.font)
+     love.graphics.setColor(1, 1, 1) -- Set text color (white)
+     local text = "Check Light"
+     local textWidth = StaticImage.font:getWidth(text)
+     local textHeight = StaticImage.font:getHeight(text)
+     love.graphics.print(text, buttonX + (buttonWidth - textWidth) / 2, buttonY + (buttonHeight - textHeight) / 2)
+ 
+     -- Reset color to white for other drawings
+     love.graphics.setColor(1, 1, 1)
+         -- Draw the light image based on the state
+-- Draw the school light image based on the state
+if StaticImage.isLightOn then
+    love.graphics.draw(StaticImage.schoolLightOn, 0, 0, 0, love.graphics.getWidth() / StaticImage.schoolLightOn:getWidth(), love.graphics.getHeight() / StaticImage.schoolLightOn:getHeight())
+elseif not StaticImage.isLightOn and StaticImage.lightOffTimer then
+    love.graphics.draw(StaticImage.schoolLightOff, 0, 0, 0, love.graphics.getWidth() / StaticImage.schoolLightOff:getWidth(), love.graphics.getHeight() / StaticImage.schoolLightOff:getHeight())
 end
+
+end
+
 
 function SolarPanel.drawGrid()
     -- Get Grid Information
@@ -490,6 +582,87 @@ local function TrySelect(selectable)
         return true
     end
     return false
+end
+function SolarPanel.checkPlacement()
+    local wireCorrect = true
+    local solarCorrect = true
+
+    -- Check wires
+    for _, pos in ipairs(wirePositions) do
+        local x, y = pos[1], pos[2]
+        if SolarPanel.grid[x][y].occupant == nil or SolarPanel.grid[x][y].occupant.tag ~= "wire" then
+            wireCorrect = false
+            break
+        end
+    end
+
+    -- Check solar panels
+    for _, pos in ipairs(solarPanelPositions) do
+        local x1, y1, x2, y2 = pos[1], pos[2], pos[3], pos[4]
+        if (SolarPanel.grid[x1][y1].occupant == nil or SolarPanel.grid[x2][y2].occupant == nil) or 
+           (SolarPanel.grid[x1][y1].occupant.tag ~= "panel" and SolarPanel.grid[x2][y2].occupant.tag ~= "panel") then
+            solarCorrect = false
+            break
+        end
+    end
+SolarPanel.checkConnections()
+     -- Show message based on placement
+
+     if wireCorrect and solarCorrect then
+
+        message = "Wires and Solar Panels are placed correctly!"
+
+        StaticImage.isLightOn = true -- Set the light to on
+
+        -- Automatically check connections after placement
+
+        SolarPanel.checkConnections()
+
+    else
+
+        message = "Please check the placement of wires and solar panels."
+
+        StaticImage.isLightOn = false -- Set the light to off
+
+    end
+
+    showMessage = true
+
+end
+function SolarPanel.checkConnections()
+    local wireCorrect = true
+    local solarCorrect = true
+
+    -- Check wires
+    for _, pos in ipairs(wirePositions) do
+        local x, y = pos[1], pos[2]
+        if SolarPanel.grid[x][y].occupant == nil or SolarPanel.grid[x][y].occupant.tag ~= "wire" then
+            wireCorrect = false
+            break
+        end
+    end
+
+    -- Check solar panels
+    for _, pos in ipairs(solarPanelPositions) do
+        local x1, y1, x2, y2 = pos[1], pos[2], pos[3], pos[4]
+        if (SolarPanel.grid[x1][y1].occupant == nil or SolarPanel.grid[x2][y2].occupant == nil) or 
+           (SolarPanel.grid[x1][y1].occupant.tag ~= "panel" and SolarPanel.grid[x2][y2].occupant.tag ~= "panel") then
+            solarCorrect = false
+            break
+        end
+    end
+
+    -- Set the light status based on connection correctness
+    if wireCorrect and solarCorrect then
+        StaticImage.isLightOn = true -- Light on
+        StaticImage.showSchoolLight = true -- Show the school light image
+    else
+        StaticImage.isLightOn = false -- Light off
+        StaticImage.lightOffTimer = 3 -- Set timer for light off display
+        StaticImage.showSchoolLight = false -- Hide the school light image
+        -- Display the school light off image for 3 seconds
+        
+    end
 end
 function SolarPanel.updatePanels()
     local mouseDown = love.mouse.isDown(1)
