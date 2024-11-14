@@ -2,6 +2,7 @@
 
 local SolarPanel = {}
 local StaticImage = {}
+local LightBulb = {}
 local Obstacles = {}
 local popupImage = nil
 local showMessage = false -- Flag to control popup visibility
@@ -77,6 +78,8 @@ function SolarPanel.load()
         panel.xScale = 1
         panel.yScale = 1
         panel.rotateDebounce = true
+        panel.cells = {{},{}}
+        panel.isCharged = false
         panel.tag = "panel"
         table.insert(SolarPanel.panels, panel)
     end
@@ -91,9 +94,17 @@ function SolarPanel.load()
         wire.xScale = 0.22
         wire.yScale = 0.21
         wire.rotateDebounce = true
+        wire.isCharged = false
         wire.tag = "wire"
         table.insert(SolarPanel.wires, wire)
     end
+
+    -- LightBulb
+    LightBulb.offImage = love.graphics.newImage("lightoff.png")
+    LightBulb.onImage = love.graphics.newImage("lighton.png")
+    LightBulb.lightLevel = 0
+    LightBulb.isFullyLight = false
+
     -- Static image (random x along the top)
     StaticImage.image = love.graphics.newImage("panelPosition.png")
     StaticImage.scaleX = 0.3
@@ -108,22 +119,40 @@ function SolarPanel.load()
     -- Load popup image
     popupImage = love.graphics.newImage("popup.png") -- Ensure this image exists
 
+    -- Deprecated
+    -- -- Initialize obstacles
+    -- for i = 1, 3 do -- Example with 3 obstacles
+    --     local obstacle = {
+    --         image = love.graphics.newImage("obstacle.png"), -- Ensure this image exists
+    --         scaleX = 0.3,
+    --         scaleY = 0.3,
+    --         originalX = math.random(100, 200),--love.graphics.getWidth() - 64),
+    --         originalY = 500,--math.random(100, love.graphics.getHeight() - 100),
+    --         x = 0,
+    --         y = 0,
+    --         isDragging = false
+    --     }
+    --     obstacle.x = obstacle.originalX
+    --     obstacle.y = obstacle.originalY
+    --     table.insert(Obstacles, obstacle)
+    -- end
+
     -- Initialize obstacles
-    for i = 1, 3 do -- Example with 3 obstacles
-        local obstacle = {
-            image = love.graphics.newImage("obstacle.png"), -- Ensure this image exists
-            scaleX = 0.3,
-            scaleY = 0.3,
-            originalX = math.random(100, 200),--love.graphics.getWidth() - 64),
-            originalY = 500,--math.random(100, love.graphics.getHeight() - 100),
-            x = 0,
-            y = 0,
-            isDragging = false
-        }
-        obstacle.x = obstacle.originalX
-        obstacle.y = obstacle.originalY
-        table.insert(Obstacles, obstacle)
+    local obstacle_indices = {
+        {3, 3},
+        {5, 1},
+        {6, 1},
+        {6, 4},
+        {10, 2},
+        {8, 2},
+        {5, 2}
+    }
+    for _, indices in pairs(obstacle_indices) do
+        local x = indices[1]
+        local y = indices[2]
+        SolarPanel.grid[x][y].occupant = {tag = "obstacle", image = love.graphics.newImage("obstacle.png")}
     end
+
     -- Load the lightoff image
     StaticImage.lightOff = love.graphics.newImage("lightoff.png")
     StaticImage.lightOffScaleX = 1.5
@@ -162,42 +191,44 @@ function SolarPanel.update(dt)
         return
     end
     SolarPanel.updatePanels()
+    SolarPanel.evaluateGameState()
 
-    -- Draggable solar panel update
-    if love.mouse.isDown(1) then
-        local mouseX, mouseY = love.mouse.getPosition()
+    -- Deprecated
+    -- -- Draggable solar panel update
+    -- if love.mouse.isDown(1) then
+    --     local mouseX, mouseY = love.mouse.getPosition()
 
-        if not SolarPanel.isDragging and 
-           mouseX >= SolarPanel.x and mouseX <= SolarPanel.x + SolarPanel.image:getWidth() * SolarPanel.scaleX and 
-           mouseY >= SolarPanel.y and mouseY <= SolarPanel.y + SolarPanel.image:getHeight() * SolarPanel.scaleY then
-            SolarPanel.isDragging = true
-        end
+    --     if not SolarPanel.isDragging and 
+    --        mouseX >= SolarPanel.x and mouseX <= SolarPanel.x + SolarPanel.image:getWidth() * SolarPanel.scaleX and 
+    --        mouseY >= SolarPanel.y and mouseY <= SolarPanel.y + SolarPanel.image:getHeight() * SolarPanel.scaleY then
+    --         SolarPanel.isDragging = true
+    --     end
 
-        -- If dragging, move the solar panel with the mouse
-        if SolarPanel.isDragging then
-            SolarPanel.x = mouseX - (SolarPanel.image:getWidth() * SolarPanel.scaleX / 2)
-            SolarPanel.y = mouseY - (SolarPanel.image:getHeight() * SolarPanel.scaleY / 2)
-        end
-    else
-        -- When mouse button is released, stop dragging and reset position if no collision
-        if SolarPanel.isDragging then
-            SolarPanel.isDragging = false
+    --     -- If dragging, move the solar panel with the mouse
+    --     if SolarPanel.isDragging then
+    --         SolarPanel.x = mouseX - (SolarPanel.image:getWidth() * SolarPanel.scaleX / 2)
+    --         SolarPanel.y = mouseY - (SolarPanel.image:getHeight() * SolarPanel.scaleY / 2)
+    --     end
+    -- else
+    --     -- When mouse button is released, stop dragging and reset position if no collision
+    --     if SolarPanel.isDragging then
+    --         SolarPanel.isDragging = false
 
-            -- Check if the solar panel collides with the static image
-            if SolarPanel.checkCollision() then
-                -- Move solar panel to static image's position
-                SolarPanel.x = StaticImage.x
-                SolarPanel.y = StaticImage.y
+    --         -- Check if the solar panel collides with the static image
+    --         if SolarPanel.checkCollision() then
+    --             -- Move solar panel to static image's position
+    --             SolarPanel.x = StaticImage.x
+    --             SolarPanel.y = StaticImage.y
 
-                -- Freeze the solar panel
-                SolarPanel.isFrozen = true
-            else
-                -- Reset to original position if no collision
-                SolarPanel.x = SolarPanel.originalX
-                SolarPanel.y = SolarPanel.originalY
-            end
-        end
-    end
+    --             -- Freeze the solar panel
+    --             SolarPanel.isFrozen = true
+    --         else
+    --             -- Reset to original position if no collision
+    --             SolarPanel.x = SolarPanel.originalX
+    --             SolarPanel.y = SolarPanel.originalY
+    --         end
+    --     end
+    -- end
 
     -- Update obstacles
     for i, obstacle in ipairs(Obstacles) do
@@ -321,34 +352,59 @@ function SolarPanel.checkObstacleCollisionPair(obstacle1, obstacle2)
            obstacle1Bottom > obstacle2.y
 end
 
+function SolarPanel.drawObstacles()
+    -- Draw obstacles
+    for i = 1, SolarPanel.grid.x_size do
+        for j = 1, SolarPanel.grid.y_size do
+            local obstacle = SolarPanel.grid[i][j].occupant
+            if (obstacle ~= nil and obstacle.tag == "obstacle") then
+                local x = (i - 1) * SolarPanel.grid.spacing + SolarPanel.grid.x_offset
+                local y = (j - 1) * SolarPanel.grid.spacing + SolarPanel.grid.y_offset
+                love.graphics.draw(obstacle.image, x, y, 0, 0.1, 0.1,
+                obstacle.image:getWidth() / 2, obstacle.image:getHeight() / 2)
+            end
+        end
+    end
+    -- for _, obstacle in ipairs(Obstacles) do
+    --     love.graphics.draw(obstacle.image, obstacle.x, obstacle.y, 0, obstacle.scaleX, obstacle.scaleY)
+    -- end
+end
+
 function SolarPanel.draw()
     love.graphics.draw(SolarPanel.background, 0, 0)
     SolarPanel.drawGrid()
+    SolarPanel.drawOutlines()
+    SolarPanel.drawObstacles()
     SolarPanel.drawPanels()
+    SolarPanel.drawLightBulb()
     SolarPanel.drawWires()
 
-    -- Draw static image (panel position)
-    love.graphics.draw(StaticImage.image, StaticImage.x, StaticImage.y, 0, StaticImage.scaleX, StaticImage.scaleY)
+    -- Deprecated
+    -- -- Draw static image (panel position)
+    -- love.graphics.draw(StaticImage.image, StaticImage.x, StaticImage.y, 0, StaticImage.scaleX, StaticImage.scaleY)
  
+    -- Deprecated
     -- Draw the light image based on the state
-    if StaticImage.isLightOn then
-        love.graphics.draw(StaticImage.lightOn, StaticImage.lightOffX, StaticImage.lightOffY, 0, StaticImage.lightOffScaleX, StaticImage.lightOffScaleY)
-    else
-        love.graphics.draw(StaticImage.lightOff, StaticImage.lightOffX, StaticImage.lightOffY, 0, StaticImage.lightOffScaleX, StaticImage.lightOffScaleY)
-    end
+    -- if StaticImage.isLightOn then
+    --     love.graphics.draw(StaticImage.lightOn, StaticImage.lightOffX, StaticImage.lightOffY, 0, StaticImage.lightOffScaleX, StaticImage.lightOffScaleY)
+    -- else
+    --     love.graphics.draw(StaticImage.lightOff, StaticImage.lightOffX, StaticImage.lightOffY, 0, StaticImage.lightOffScaleX, StaticImage.lightOffScaleY)
+    -- end
 
+    -- Deprecated
     -- Draw the solar panel if it's not frozen
-    if not SolarPanel.isFrozen then
-        love.graphics.draw(SolarPanel.image, SolarPanel.x, SolarPanel.y, 0, SolarPanel.scaleX, SolarPanel.scaleY)
-    else
-        -- Draw the solar panel at the static image's position when frozen
-        love.graphics.draw(SolarPanel.image, StaticImage.x, StaticImage.y, 0, SolarPanel.scaleX, SolarPanel.scaleY)
-    end
+    -- if not SolarPanel.isFrozen then
+    --     love.graphics.draw(SolarPanel.image, SolarPanel.x, SolarPanel.y, 0, SolarPanel.scaleX, SolarPanel.scaleY)
+    -- else
+    --     -- Draw the solar panel at the static image's position when frozen
+    --     love.graphics.draw(SolarPanel.image, StaticImage.x, StaticImage.y, 0, SolarPanel.scaleX, SolarPanel.scaleY)
+    -- end
 
+    -- Deprecated
     -- Draw obstacles
-    for _, obstacle in ipairs(Obstacles) do
-        love.graphics.draw(obstacle.image, obstacle.x, obstacle.y, 0, obstacle.scaleX, obstacle.scaleY)
-    end
+    -- for _, obstacle in ipairs(Obstacles) do
+    --     love.graphics.draw(obstacle.image, obstacle.x, obstacle.y, 0, obstacle.scaleX, obstacle.scaleY)
+    -- end
 
     -- Show the popup message if applicable
     if showMessage then
@@ -359,7 +415,7 @@ function SolarPanel.draw()
         local font = love.graphics.newFont(fontSize)
         love.graphics .setFont(font)
         love.graphics.setColor(1, 1, 1) -- Set color to white
-        love.graphics.print(message, love.graphics.getWidth() / 2 - font:getWidth(message) / 2, love.graphics.getHeight() / 2 - font:getHeight(message) / 2)
+        -- love.graphics.print(message, love.graphics.getWidth() / 2 - font:getWidth(message) / 2, love.graphics.getHeight() / 2 - font:getHeight(message) / 2)
     end
 
      -- Draw the button
@@ -406,10 +462,22 @@ function SolarPanel.drawGrid()
     love.graphics.setColor(0.7, 0.7, 0.7, 1)
     for i = 0, x_size - 1 do
         for j = 0, y_size - 1 do
-            love.graphics.rectangle("fill",
-            x_offset + i * spacing - cell_size / 2,
-            y_offset + j * spacing - cell_size / 2,
-            cell_size, cell_size)
+            if (i == x_size - 1 and j == 0) then
+                love.graphics.setColor(0.2, 0.2, 0.2, 1)
+
+                love.graphics.rectangle("fill",
+                x_offset + i * spacing - cell_size / 2,
+                y_offset + j * spacing - cell_size / 2,
+                cell_size, cell_size)
+
+                love.graphics.setColor(0.7, 0.7, 0.7, 1)
+            else
+                love.graphics.rectangle("fill",
+                x_offset + i * spacing - cell_size / 2,
+                y_offset + j * spacing - cell_size / 2,
+                cell_size, cell_size)
+            end
+            
         end
     end
     love.graphics.setColor(1, 1, 1, 1) -- Reset color to white for other drawings
@@ -432,6 +500,21 @@ function SolarPanel.drawPanels()
     end
     
 end
+function SolarPanel.drawLightBulb()
+    local scale = 1
+    local x = (SolarPanel.grid.x_size) * SolarPanel.grid.spacing + SolarPanel.grid.x_offset
+    local y = SolarPanel.grid.y_offset
+    if (LightBulb.isFullyLight) then
+        love.graphics.draw(LightBulb.onImage, x, y, 0, scale, scale, LightBulb.onImage:getWidth() / 2, LightBulb.onImage:getHeight() / 2)
+    else
+        love.graphics.setColor(1, 1, 1, 1 - 1/6 * LightBulb.lightLevel) -- Make "unlit" less visible for higher light levels
+        love.graphics.draw(LightBulb.offImage, x, y, 0, scale, scale, LightBulb.offImage:getWidth() / 2, LightBulb.offImage:getHeight() / 2)
+        love.graphics.setColor(1, 1, 1, 1/6 * LightBulb.lightLevel) -- Make "lit" more visible for higher light levels
+        love.graphics.draw(LightBulb.onImage, x, y, 0, scale, scale, LightBulb.onImage:getWidth() / 2, LightBulb.onImage:getHeight() / 2)
+        love.graphics.setColor(1, 1, 1, 1) -- Reset Color
+    end
+    
+end
 local function drawRotatedRectangle(mode, x, y, width, height, angle)
 	-- We cannot rotate the rectangle directly, but we
 	-- can move and rotate the coordinate system.
@@ -451,13 +534,72 @@ function SolarPanel.drawWires()
         drawRotatedRectangle("fill", wire.x, wire.y, x_size, y_size, math.pi / 2 * wire.rotation)
         love.graphics.setColor(1, 1, 1) -- RGB values for white
     end
-    local x = love.mouse.getX()
-    local y = love.mouse.getY()
-    local ix, iy = CoordsToGridIndices(x, y, true)
 
-    love.graphics.setColor(0, 0, 0) -- RGB values for black
-    love.graphics.print("X: "..ix..", Y:"..iy, 0, 0)
-    love.graphics.setColor(1, 1, 1) -- Reset color to white for other drawings
+    -- Below is purely for debugging
+    -- local x = love.mouse.getX()
+    -- local y = love.mouse.getY()
+    -- local ix, iy = CoordsToGridIndices(x, y, true)
+
+    -- love.graphics.setColor(0, 0, 0) -- RGB values for black
+    -- love.graphics.print("X: "..ix..", Y:"..iy, 0, 0)
+    -- if (SolarPanel.evaluateGameState()) then
+    --     love.graphics.print("LIGHT", 100, 0)
+    -- else
+    --     love.graphics.print("DARK", 100, 0)
+    -- end
+    
+    -- love.graphics.setColor(1, 1, 1) -- Reset color to white for other drawings
+end
+function SolarPanel.drawOutlines()
+    -- Get Grid Information
+    local x_offset = SolarPanel.grid.x_offset
+    local y_offset = SolarPanel.grid.y_offset
+    local x_size = SolarPanel.grid.x_size
+    local y_size = SolarPanel.grid.y_size
+    local cell_size = SolarPanel.grid.cell_size
+    local spacing = SolarPanel.grid.spacing
+    
+    local setOutlineColor = function (isCharged)
+        if (isCharged) then
+            if (LightBulb.isFullyLight) then
+                love.graphics.setColor(0.8, 0.8, 0) -- RGB values for yellow
+            else
+                love.graphics.setColor(0, 0.5, 0) -- RGB values for green
+            end
+            
+        else
+            love.graphics.setColor(0.2, 0.2, 0.2) -- RGB values for gray
+        end
+        
+    end
+    local setWhite = function ()
+        love.graphics.setColor(1, 1, 1) -- RGB values for white
+    end
+    for i = 0, x_size - 1 do
+        for j = 0, y_size - 1 do
+            local occupant = SolarPanel.grid[i+1][j+1].occupant
+            if (occupant ~= nil) then
+                -- Draw each wire outline
+                if (occupant.tag == "wire") then
+                    local wire = occupant
+                    local x_size = SolarPanel.wire_xSize
+                    local y_size = SolarPanel.wire_ySize
+                    setOutlineColor(occupant.isCharged)
+                    drawRotatedRectangle("fill", wire.x, wire.y, x_size + 4, y_size + 4, math.pi / 2 * wire.rotation)
+                    setWhite()
+                -- Draw each panel outline
+                elseif (occupant.tag == "panel") then
+                    local newCellSize = cell_size + 4
+                    setOutlineColor(occupant.isCharged)
+                    love.graphics.rectangle("fill",
+                    x_offset + i * spacing - newCellSize / 2,
+                    y_offset + j * spacing - newCellSize / 2,
+                    newCellSize, newCellSize)
+                    setWhite()
+                end
+            end
+        end
+    end
 end
 
 function CoordsToGridIndices(x, y, account_for_offset)
@@ -486,17 +628,14 @@ function CoordsToGridIndices(x, y, account_for_offset)
     return index_x, index_y
 end
 local function SnapToGrid(panel)
-    local x_size = SolarPanel.grid.x_size
-    local y_size = SolarPanel.grid.y_size
-    local x_offset = SolarPanel.grid.x_offset
-    local y_offset = SolarPanel.grid.y_offset
+    local grid_x_offset = SolarPanel.grid.x_offset
+    local grid_y_offset = SolarPanel.grid.y_offset
     local spacing = SolarPanel.grid.spacing
-    local cell_size = SolarPanel.grid.cell_size
 
     -- Translate coordinates to origin coordinates to make calculations easier
     -- a.k.a pretend the grid at the top left of the screen
-    local nx = panel.x - x_offset
-    local ny = panel.y - y_offset
+    local nx = panel.x - grid_x_offset
+    local ny = panel.y - grid_y_offset
     local grid_x, grid_y = CoordsToGridIndices(nx, ny)
     -- If outside the grid, do not snap
     if (grid_x == -1 or grid_y == -1) then
@@ -513,7 +652,7 @@ local function SnapToGrid(panel)
             offsety = 0
         else
             offsetx = 0
-            offsety = xy.y * panel.yScale / 2
+            offsety = xy.y * panel.yScale
         end
     else
         -- Place wire in the middle of the cell
@@ -521,8 +660,8 @@ local function SnapToGrid(panel)
         offsetx = 0
     end
     -- Snap to grid
-    panel.x = (grid_x - 1) * spacing + x_offset - offsetx
-    panel.y = (grid_y - 1) * spacing + y_offset - offsety
+    panel.x = (grid_x - 1) * spacing + grid_x_offset - offsetx
+    panel.y = (grid_y - 1) * spacing + grid_y_offset - offsety
 end
 local function PlacePanel(panel)
     local x = love.mouse.getX()
@@ -543,13 +682,19 @@ local function PlacePanel(panel)
                     return
                 end
                 SolarPanel.grid[grid_x - 1][grid_y].occupant = panel
+                panel.cells[1].x = grid_x - 1
+                panel.cells[1].y = grid_y
             else
                  -- Handle case of panel being off grid and colliding panel
                 if (grid_y == 1 or SolarPanel.grid[grid_x][grid_y - 1].occupant ~= nil) then
                     return
                 end
                 SolarPanel.grid[grid_x][grid_y - 1].occupant = panel
+                panel.cells[1].x = grid_x
+                panel.cells[1].y = grid_y - 1
             end
+            panel.cells[2].x = grid_x
+            panel.cells[2].y = grid_y
         end
 
 
@@ -633,24 +778,28 @@ function SolarPanel.checkConnections()
     local wireCorrect = true
     local solarCorrect = true
 
-    -- Check wires
-    for _, pos in ipairs(wirePositions) do
-        local x, y = pos[1], pos[2]
-        if SolarPanel.grid[x][y].occupant == nil or SolarPanel.grid[x][y].occupant.tag ~= "wire" then
-            wireCorrect = false
-            break
-        end
-    end
+    -- -- Check wires
+    -- for _, pos in ipairs(wirePositions) do
+    --     local x, y = pos[1], pos[2]
+    --     if SolarPanel.grid[x][y].occupant == nil or SolarPanel.grid[x][y].occupant.tag ~= "wire" then
+    --         wireCorrect = false
+    --         break
+    --     end
+    -- end
 
-    -- Check solar panels
-    for _, pos in ipairs(solarPanelPositions) do
-        local x1, y1, x2, y2 = pos[1], pos[2], pos[3], pos[4]
-        if (SolarPanel.grid[x1][y1].occupant == nil or SolarPanel.grid[x2][y2].occupant == nil) or 
-           (SolarPanel.grid[x1][y1].occupant.tag ~= "panel" and SolarPanel.grid[x2][y2].occupant.tag ~= "panel") then
-            solarCorrect = false
-            break
-        end
-    end
+    -- -- Check solar panels
+    -- for _, pos in ipairs(solarPanelPositions) do
+    --     local x1, y1, x2, y2 = pos[1], pos[2], pos[3], pos[4]
+    --     if (SolarPanel.grid[x1][y1].occupant == nil or SolarPanel.grid[x2][y2].occupant == nil) or 
+    --        (SolarPanel.grid[x1][y1].occupant.tag ~= "panel" and SolarPanel.grid[x2][y2].occupant.tag ~= "panel") then
+    --         solarCorrect = false
+    --         break
+    --     end
+    -- end
+
+    local allCorrect = SolarPanel.evaluateGameState()
+    wireCorrect = allCorrect
+    solarCorrect = allCorrect
 
     -- Set the light status based on connection correctness
     if wireCorrect and solarCorrect then
@@ -711,9 +860,232 @@ function SolarPanel.updatePanels()
             break
         end
     end
+end
 
+-- Helper functions for stack functionality
+function PushStack(stack, item)
+    table.insert(stack, item)
+end
+function PopStack(stack)
+    return table.remove(stack)
+end
+local function neighborsFromWire(wire, results)
+    local neighbors = {}
+    -- TODO: support more wire types
 
+    local verify = function (x, y)
+        -- Only return neighbors that have an occupant (wire or panel)
+        if (SolarPanel.grid[x][y].occupant == nil) then
+            return false
+        end
+        -- If a panel is the occupant, no further checks needed
+        if (SolarPanel.grid[x][y].occupant.tag == "panel") then
+            return true
+        end
+        -- If occupant is a wire, make sure it aligns with the current wire
+        if (SolarPanel.grid[x][y].occupant.tag == "wire" and
+            SolarPanel.grid[x][y].occupant.rotation ~= wire.rotation) then
+            return false
+        end
 
+        return true
+    end
+    if (wire.rotation == 0) then
+        -- Check left and right
+        local ix, iy = CoordsToGridIndices(wire.x, wire.y, true)
+        local lx = ix - 1
+        local rx = ix + 1
+        if (lx > 0 and results.seen[lx][iy] == false and verify(lx, iy)) then
+            table.insert(neighbors, {
+                x = lx,
+                y = iy
+            })
+        end
+        if (rx <= SolarPanel.grid.x_size and results.seen[rx][iy] == false and verify(rx, iy)) then
+            table.insert(neighbors, {
+                x = rx,
+                y = iy
+            })
+        end
+    else
+        -- Check up and down
+        local ix, iy = CoordsToGridIndices(wire.x, wire.y, true)
+        local dy = iy - 1
+        local uy = iy + 1
+        if (dy > 0 and results.seen[ix][dy] == false and verify(ix, dy)) then
+            table.insert(neighbors, {
+                x = ix,
+                y = dy
+            })
+        end
+        if (uy <= SolarPanel.grid.x_size and results.seen[ix][uy] == false and verify(ix, uy)) then
+            table.insert(neighbors, {
+                x = ix,
+                y = uy
+            })
+        end
+    end
+    return neighbors
+end
+local function neighborsFromPanel(panel, results)
+    local neighbors = {}
+    for i = 1, 2 do
+        local cell = panel.cells[i]
+        local ix = cell.x
+        local iy = cell.y
+        -- Check each 4 directions as neighbors
+        -- Verification function for the occupant of a grid cell
+        -- Only return wires; solar panels must be connected by wires
+        local verify = function (x, y, rotation)
+            -- Ensure x and y are within bounds
+            if not (x > 0 and x <= SolarPanel.grid.x_size and
+            y > 0 and y <= SolarPanel.grid.y_size) then
+                return false
+            end
+            -- Ensure we have a wire
+            if not (results.seen[x][y] == false and SolarPanel.grid[x][y].occupant ~= nil and
+            SolarPanel.grid[x][y].occupant.tag == "wire") then
+                return false
+            end
+            -- Ensure the wire is the desired rotation
+            -- E.g., if we are checking "left," then the wire should be horizontal (rotation == 0)
+            -- if we are checking "up," then the wire should be vertical (rotation == 1)
+            return SolarPanel.grid[x][y].occupant.rotation == rotation
+        end
+        -- Left
+        do
+            local x = ix - 1
+            local y = iy
+            if (verify(x,y,0)) then
+                -- This check was put to prevent the double "hit" of solar panels since a solar panel takes up two slots
+                -- Since we now only take wires as neighbors, this is no longer an issue
+                -- local occupant = SolarPanel.grid[x][y].occupant
+                -- if (occupant ~= nil and occupant.tag == "panel") then
+                --     -- print("DOUBLE CHECK")
+                --     local cell1 = occupant.cells[1]
+                --     local cell2 = occupant.cells[2]
+                --     results.seen[cell1.x][cell1.y] = true
+                --     results.seen[cell2.x][cell2.y] = true
+                -- else
+                --     -- print("NOT DOUBLE CHECK")
+                -- end
+                table.insert(neighbors, {
+                    x = x,
+                    y = y
+                })
+                results.seen[x][y] = true
+            end
+        end
+        -- Right
+        do
+            local x = ix + 1
+            local y = iy
+            if (verify(x,y,0)) then
+                table.insert(neighbors, {
+                    x = x,
+                    y = y
+                })
+                results.seen[x][y] = true
+            end
+        end
+        -- Up
+        do
+            local x = ix
+            local y = iy + 1
+            if (verify(x,y,1)) then
+                table.insert(neighbors, {
+                    x = x,
+                    y = y
+                })
+                results.seen[x][y] = true
+            end
+        end
+        -- Down
+        do
+            local x = ix
+            local y = iy - 1
+            if (verify(x,y,1)) then
+                table.insert(neighbors, {
+                    x = x,
+                    y = y
+                })
+                results.seen[x][y] = true
+            end
+        end
+    end
+    return neighbors
+end
+-- See how many solar panels and wires are connected to the light bulb
+local function searchFromBulb(results)
+    local stack = {}
+    local grid_cell = {
+        x = SolarPanel.grid.x_size,
+        y = 1
+    }
+    PushStack(stack, grid_cell)
+
+    for i = 1, SolarPanel.grid.x_size do
+        for j = 1, SolarPanel.grid.y_size do
+            local item = SolarPanel.grid[i][j].occupant
+            if (item ~= nil) then
+                item.isCharged = false
+            end
+        end
+    end
+
+    -- Perform a "search" from the light bulb to get our path
+    while (#stack > 0) do
+        local cell = PopStack(stack)
+        -- Remember the cell we have seen
+        results.seen[cell.x][cell.y] = true
+
+        local item = SolarPanel.grid[cell.x][cell.y].occupant
+        if (item ~= nil) then
+            item.isCharged = true
+            if (item.tag == "panel") then
+                local cell1 = item.cells[1]
+                local cell2 = item.cells[2]
+                results.seen[cell1.x][cell1.y] = true
+                results.seen[cell2.x][cell2.y] = true
+                results.panelsVisited = results.panelsVisited + 1
+                -- print("visited panel")
+                local neighbors = neighborsFromPanel(item, results)
+                for _, neighbor_cell in pairs(neighbors) do
+                    PushStack(stack, neighbor_cell)
+                end
+            elseif (item.tag == "wire") then
+                results.wiresVisited = results.wiresVisited + 1
+                -- print("visited wire")
+                local neighbors = neighborsFromWire(item, results)
+                for _, neighbor_cell in pairs(neighbors) do
+                    PushStack(stack, neighbor_cell)
+                end
+            end
+        end
+    end
+end
+
+function SolarPanel.evaluateGameState()
+    local results = {
+        seen = {},
+        wiresVisited = 0,
+        panelsVisited = 0
+    }
+    for i = 1, SolarPanel.grid.x_size do
+        results.seen[i] ={} 
+        for j = 1, SolarPanel.grid.y_size do
+            results.seen[i][j] = false
+        end
+    end
+
+    searchFromBulb(results)
+    LightBulb.lightLevel = results.panelsVisited
+    LightBulb.isFullyLight = false
+    if (results.panelsVisited > 4) then
+        LightBulb.isFullyLight = true
+        return true
+    end
+    return false
 end
 
 
