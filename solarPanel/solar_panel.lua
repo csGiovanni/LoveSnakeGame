@@ -96,6 +96,7 @@ function SolarPanel.load()
         wire.rotateDebounce = true
         wire.isCharged = false
         wire.tag = "wire"
+        wire.type = 0
         table.insert(SolarPanel.wires, wire)
     end
 
