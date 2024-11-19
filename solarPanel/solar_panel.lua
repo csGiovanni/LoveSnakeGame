@@ -1,5 +1,6 @@
 -- solar_panel.lua
 
+local MAX_LEVELS = 3
 local SolarPanel = {}
 local StaticImage = {}
 local LightBulb = {}
@@ -17,7 +18,168 @@ local solarPanelPositions = {
     {2, 2, 3, 2}, {5, 2, 6, 2}, {8, 2, 9, 2}, {3, 3, 4, 3}, {6, 3, 7, 3}
 }
 
+function SolarPanel.InitGrid()
+        -- Initialize Grid
+        SolarPanel.grid = {}
+        local x_size = 10
+        local y_size = 4
+        -- Record the size of the grid
+        SolarPanel.grid.x_size = x_size
+        SolarPanel.grid.y_size = y_size
+        -- Record where the grid has been placed
+        SolarPanel.grid.x_offset = 100
+        SolarPanel.grid.y_offset = 100
+        -- Record spacing between each cell
+        SolarPanel.grid.spacing = 52
+        -- Record how big to draw each cell
+        SolarPanel.grid.cell_size = 50
+        for i = 1, x_size do
+            SolarPanel.grid[i] = {}
+            for j = 1, y_size do
+                -- Create information for each grid cell
+                SolarPanel.grid[i][j] = {}
+                local grid_cell_info = SolarPanel.grid[i][j]
+                -- To record what is occupying the cell
+                grid_cell_info.occupant = nil;
+            end
+        end
+end
+
+function SolarPanel.InitObstacles()
+    if (SolarPanel.level == 0) then
+        return
+    end
+    -- Initialize obstacles
+    local obstacle_indices = {}
+    if (SolarPanel.level == 1) then
+        local rnd = love.math.random(3) - 1
+        if (rnd == 0) then
+            obstacle_indices = {
+                {9, 1},
+                {10, 3},
+                {8, 4},
+                {7, 3}
+    
+            }
+        elseif (rnd == 1) then
+            obstacle_indices = {
+                {10, 2},
+                {7, 1},
+                {8, 3},
+                {5, 3}
+    
+            }
+        else
+            obstacle_indices = {
+                {8, 1},
+                {10, 3},
+                {8, 3},
+                {5, 2}
+            }
+        end
+
+    end
+    if (SolarPanel.level == 2) then
+        local rnd = love.math.random(2) - 1
+        if (rnd == 0) then
+            obstacle_indices = {
+                {3, 3},
+                {5, 1},
+                {6, 1},
+                {6, 4},
+                {10, 2},
+                {8, 2},
+                {5, 2}
+            }
+        elseif (rnd == 1) then
+            obstacle_indices = {
+                {10, 2},
+                {9, 2},
+                {7, 1},
+                {5, 3},
+                {7, 3},
+                {6, 1}
+    
+            }
+        end
+
+    end
+
+    for _, indices in pairs(obstacle_indices) do
+        local x = indices[1]
+        local y = indices[2]
+        SolarPanel.grid[x][y].occupant = {tag = "obstacle", image = love.graphics.newImage("obstacle.png")}
+    end
+end
+
+function SolarPanel.InitPanels()
+    -- Initialize Solar Panels and the selected panel
+    SolarPanel.panelImage = love.graphics.newImage("solarPanel2.png")
+    SolarPanel.panels = {}
+    SolarPanel.selected = nil
+
+    local count do 
+        if (SolarPanel.level == 0) then
+            count = 3
+        end
+        if (SolarPanel.level == 1) then
+            count = 6
+        end
+        if (SolarPanel.level == 2) then
+            count = 4
+        end
+    end
+    SolarPanel.panelCount = count;
+    for i = 1, count do
+        local panel = {}
+        panel.x = 50 + i * 100
+        panel.y = 400
+        panel.rotation = 1
+        panel.xScale = 1
+        panel.yScale = 1
+        panel.rotateDebounce = true
+        panel.cells = {{},{}}
+        panel.isCharged = false
+        panel.tag = "panel"
+        table.insert(SolarPanel.panels, panel)
+    end
+end
+
+function SolarPanel.InitWires()
+    SolarPanel.wires = {}
+    SolarPanel.wire_xSize = SolarPanel.grid.cell_size - 2
+    SolarPanel.wire_ySize = SolarPanel.grid.cell_size / 4
+    for i = 1, 5 do
+        local wire = {}
+        wire.x = 50 + i * 100
+        wire.y = 500
+        wire.rotation = 0
+        wire.xScale = 0.22
+        wire.yScale = 0.21
+        wire.rotateDebounce = true
+        wire.isCharged = false
+        wire.tag = "wire"
+        wire.type = 0
+        table.insert(SolarPanel.wires, wire)
+    end
+
+    for i = 1, 5 do
+        local wire = {}
+        wire.x = 50 + i * 100
+        wire.y = 530
+        wire.rotation = 0
+        wire.xScale = 0.22
+        wire.yScale = 0.21
+        wire.rotateDebounce = true
+        wire.isCharged = false
+        wire.tag = "wire"
+        wire.type = 0
+        table.insert(SolarPanel.wires, wire)
+    end
+end
+
 function SolarPanel.load()
+    love.math.setRandomSeed(love.timer.getTime())
     -- Load background image
     SolarPanel.background = love.graphics.newImage("background.png")
    -- Load the game background music
@@ -41,64 +203,15 @@ function SolarPanel.load()
     SolarPanel.isDragging = false
     SolarPanel.isFrozen = false -- New flag to freeze movement after collision
 
-    -- Initialize Grid
-    SolarPanel.grid = {}
-    local x_size = 10
-    local y_size = 4
-    -- Record the size of the grid
-    SolarPanel.grid.x_size = x_size
-    SolarPanel.grid.y_size = y_size
-    -- Record where the grid has been placed
-    SolarPanel.grid.x_offset = 100
-    SolarPanel.grid.y_offset = 100
-    -- Record spacing between each cell
-    SolarPanel.grid.spacing = 52
-    -- Record how big to draw each cell
-    SolarPanel.grid.cell_size = 50
-    for i = 1, x_size do
-        SolarPanel.grid[i] = {}
-        for j = 1, y_size do
-            -- Create information for each grid cell
-            SolarPanel.grid[i][j] = {}
-            local grid_cell_info = SolarPanel.grid[i][j]
-            -- To record what is occupying the cell
-            grid_cell_info.occupant = nil;
-        end
-    end
+    SolarPanel.panelCount = 0;
+    SolarPanel.level = 0;
 
-    -- Initialize Solar Panels and the selected panel
-    SolarPanel.panelImage = love.graphics.newImage("solarPanel2.png")
-    SolarPanel.panels = {}
-    SolarPanel.selected = nil
-    for i = 1, 5 do
-        local panel = {}
-        panel.x = 50 + i * 100
-        panel.y = 400
-        panel.rotation = 0
-        panel.xScale = 1
-        panel.yScale = 1
-        panel.rotateDebounce = true
-        panel.cells = {{},{}}
-        panel.isCharged = false
-        panel.tag = "panel"
-        table.insert(SolarPanel.panels, panel)
-    end
-    SolarPanel.wires = {}
-    SolarPanel.wire_xSize = SolarPanel.grid.cell_size - 2
-    SolarPanel.wire_ySize = SolarPanel.grid.cell_size / 4
-    for i = 1, 5 do
-        local wire = {}
-        wire.x = 50 + i * 100
-        wire.y = 500
-        wire.rotation = 0
-        wire.xScale = 0.22
-        wire.yScale = 0.21
-        wire.rotateDebounce = true
-        wire.isCharged = false
-        wire.tag = "wire"
-        wire.type = 0
-        table.insert(SolarPanel.wires, wire)
-    end
+
+    SolarPanel.InitGrid()
+    SolarPanel.InitObstacles()
+    SolarPanel.InitPanels()
+    SolarPanel.InitWires()
+
 
     -- LightBulb
     LightBulb.offImage = love.graphics.newImage("lightoff.png")
@@ -119,40 +232,6 @@ function SolarPanel.load()
 
     -- Load popup image
     popupImage = love.graphics.newImage("popup.png") -- Ensure this image exists
-
-    -- Deprecated
-    -- -- Initialize obstacles
-    -- for i = 1, 3 do -- Example with 3 obstacles
-    --     local obstacle = {
-    --         image = love.graphics.newImage("obstacle.png"), -- Ensure this image exists
-    --         scaleX = 0.3,
-    --         scaleY = 0.3,
-    --         originalX = math.random(100, 200),--love.graphics.getWidth() - 64),
-    --         originalY = 500,--math.random(100, love.graphics.getHeight() - 100),
-    --         x = 0,
-    --         y = 0,
-    --         isDragging = false
-    --     }
-    --     obstacle.x = obstacle.originalX
-    --     obstacle.y = obstacle.originalY
-    --     table.insert(Obstacles, obstacle)
-    -- end
-
-    -- Initialize obstacles
-    local obstacle_indices = {
-        {3, 3},
-        {5, 1},
-        {6, 1},
-        {6, 4},
-        {10, 2},
-        {8, 2},
-        {5, 2}
-    }
-    for _, indices in pairs(obstacle_indices) do
-        local x = indices[1]
-        local y = indices[2]
-        SolarPanel.grid[x][y].occupant = {tag = "obstacle", image = love.graphics.newImage("obstacle.png")}
-    end
 
     -- Load the lightoff image
     StaticImage.lightOff = love.graphics.newImage("lightoff.png")
@@ -193,43 +272,6 @@ function SolarPanel.update(dt)
     end
     SolarPanel.updatePanels()
     SolarPanel.evaluateGameState()
-
-    -- Deprecated
-    -- -- Draggable solar panel update
-    -- if love.mouse.isDown(1) then
-    --     local mouseX, mouseY = love.mouse.getPosition()
-
-    --     if not SolarPanel.isDragging and 
-    --        mouseX >= SolarPanel.x and mouseX <= SolarPanel.x + SolarPanel.image:getWidth() * SolarPanel.scaleX and 
-    --        mouseY >= SolarPanel.y and mouseY <= SolarPanel.y + SolarPanel.image:getHeight() * SolarPanel.scaleY then
-    --         SolarPanel.isDragging = true
-    --     end
-
-    --     -- If dragging, move the solar panel with the mouse
-    --     if SolarPanel.isDragging then
-    --         SolarPanel.x = mouseX - (SolarPanel.image:getWidth() * SolarPanel.scaleX / 2)
-    --         SolarPanel.y = mouseY - (SolarPanel.image:getHeight() * SolarPanel.scaleY / 2)
-    --     end
-    -- else
-    --     -- When mouse button is released, stop dragging and reset position if no collision
-    --     if SolarPanel.isDragging then
-    --         SolarPanel.isDragging = false
-
-    --         -- Check if the solar panel collides with the static image
-    --         if SolarPanel.checkCollision() then
-    --             -- Move solar panel to static image's position
-    --             SolarPanel.x = StaticImage.x
-    --             SolarPanel.y = StaticImage.y
-
-    --             -- Freeze the solar panel
-    --             SolarPanel.isFrozen = true
-    --         else
-    --             -- Reset to original position if no collision
-    --             SolarPanel.x = SolarPanel.originalX
-    --             SolarPanel.y = SolarPanel.originalY
-    --         end
-    --     end
-    -- end
 
     -- Update obstacles
     for i, obstacle in ipairs(Obstacles) do
@@ -301,9 +343,15 @@ function SolarPanel.update(dt)
  local mouseX, mouseY = love.mouse.getPosition()
  if love.mouse.isDown(1) and 
     mouseX >= StaticImage.buttonX and mouseX <= StaticImage.buttonX + StaticImage.buttonWidth and
-    mouseY >= StaticImage.buttonY and mouseY <= (StaticImage.buttonY + StaticImage.buttonHeight)-300 then
+    mouseY >= StaticImage.buttonY and mouseY <= (StaticImage.buttonY + StaticImage.buttonHeight)-300 and SolarPanel.selected == nil then
      SolarPanel.checkConnections()
  end
+ local isWithinNextLevelBounds = mouseX >= 100 and mouseX <= 100 + StaticImage.buttonWidth and
+                                mouseY >= 100 and mouseY <= (100 + StaticImage.buttonHeight)-300
+ if (love.mouse.isDown(1) and isWithinNextLevelBounds and StaticImage.isLightOn) then
+    SolarPanel.nextLevel()
+ end
+
 
  -- Handle light off display timer
  if not StaticImage.isLightOn and StaticImage.lightOffTimer then
@@ -314,6 +362,19 @@ function SolarPanel.update(dt)
  end
 end
 
+function SolarPanel.nextLevel()
+    -- Increment Level
+    SolarPanel.level = (SolarPanel.level + 1) % MAX_LEVELS
+    -- Reset Grid
+    SolarPanel.InitGrid()
+    SolarPanel.InitObstacles()
+    SolarPanel.InitPanels()
+    SolarPanel.InitWires()
+    -- Reset StaticImage.isLightOn
+    StaticImage.isLightOn = false
+    -- EvaluateGameState to reset
+    SolarPanel.evaluateGameState()
+end
 -- Function to check collision between solar panel and static image
 function SolarPanel.checkCollision()
     local solarPanelRight = SolarPanel.x + SolarPanel.image:getWidth() * SolarPanel.scaleX
@@ -380,33 +441,6 @@ function SolarPanel.draw()
     SolarPanel.drawLightBulb()
     SolarPanel.drawWires()
 
-    -- Deprecated
-    -- -- Draw static image (panel position)
-    -- love.graphics.draw(StaticImage.image, StaticImage.x, StaticImage.y, 0, StaticImage.scaleX, StaticImage.scaleY)
- 
-    -- Deprecated
-    -- Draw the light image based on the state
-    -- if StaticImage.isLightOn then
-    --     love.graphics.draw(StaticImage.lightOn, StaticImage.lightOffX, StaticImage.lightOffY, 0, StaticImage.lightOffScaleX, StaticImage.lightOffScaleY)
-    -- else
-    --     love.graphics.draw(StaticImage.lightOff, StaticImage.lightOffX, StaticImage.lightOffY, 0, StaticImage.lightOffScaleX, StaticImage.lightOffScaleY)
-    -- end
-
-    -- Deprecated
-    -- Draw the solar panel if it's not frozen
-    -- if not SolarPanel.isFrozen then
-    --     love.graphics.draw(SolarPanel.image, SolarPanel.x, SolarPanel.y, 0, SolarPanel.scaleX, SolarPanel.scaleY)
-    -- else
-    --     -- Draw the solar panel at the static image's position when frozen
-    --     love.graphics.draw(SolarPanel.image, StaticImage.x, StaticImage.y, 0, SolarPanel.scaleX, SolarPanel.scaleY)
-    -- end
-
-    -- Deprecated
-    -- Draw obstacles
-    -- for _, obstacle in ipairs(Obstacles) do
-    --     love.graphics.draw(obstacle.image, obstacle.x, obstacle.y, 0, obstacle.scaleX, obstacle.scaleY)
-    -- end
-
     -- Show the popup message if applicable
     if showMessage then
         love.graphics.draw(popupImage, love.graphics.getWidth() / 2 - popupImage:getWidth() / 2, love.graphics.getHeight() / 2 - popupImage:getHeight() / 2)
@@ -440,12 +474,28 @@ function SolarPanel.draw()
      -- Reset color to white for other drawings
      love.graphics.setColor(1, 1, 1)
          -- Draw the light image based on the state
--- Draw the school light image based on the state
-if StaticImage.isLightOn then
-    love.graphics.draw(StaticImage.schoolLightOn, 0, 0, 0, love.graphics.getWidth() / StaticImage.schoolLightOn:getWidth(), love.graphics.getHeight() / StaticImage.schoolLightOn:getHeight())
-elseif not StaticImage.isLightOn and StaticImage.lightOffTimer then
-    love.graphics.draw(StaticImage.schoolLightOff, 0, 0, 0, love.graphics.getWidth() / StaticImage.schoolLightOff:getWidth(), love.graphics.getHeight() / StaticImage.schoolLightOff:getHeight())
-end
+    -- Draw the school light image based on the state
+    if StaticImage.isLightOn then
+        -- Draw lit classroom
+        love.graphics.draw(StaticImage.schoolLightOn, 0, 0, 0, love.graphics.getWidth() / StaticImage.schoolLightOn:getWidth(), love.graphics.getHeight() / StaticImage.schoolLightOn:getHeight())
+
+        buttonX = 100
+        buttonY = 100
+        -- Draw a rectangle for the button
+        love.graphics.setColor(0.5, 0.5, 0.5) -- Set button color (gray)
+        love.graphics.rectangle("fill", buttonX, buttonY, buttonWidth, buttonHeight)
+
+        -- Draw the text in the center of the button
+        love.graphics.setFont(StaticImage.font)
+        love.graphics.setColor(1, 1, 1) -- Set text color (white)
+        local text = "Next Level"
+        local textWidth = StaticImage.font:getWidth(text)
+        local textHeight = StaticImage.font:getHeight(text)
+        love.graphics.print(text, buttonX + (buttonWidth - textWidth) / 2, buttonY + (buttonHeight - textHeight) / 2)
+
+    elseif not StaticImage.isLightOn and StaticImage.lightOffTimer then
+        love.graphics.draw(StaticImage.schoolLightOff, 0, 0, 0, love.graphics.getWidth() / StaticImage.schoolLightOff:getWidth(), love.graphics.getHeight() / StaticImage.schoolLightOff:getHeight())
+    end
 
 end
 
@@ -1082,7 +1132,7 @@ function SolarPanel.evaluateGameState()
     searchFromBulb(results)
     LightBulb.lightLevel = results.panelsVisited
     LightBulb.isFullyLight = false
-    if (results.panelsVisited > 4) then
+    if (results.panelsVisited >= SolarPanel.panelCount) then
         LightBulb.isFullyLight = true
         return true
     end
