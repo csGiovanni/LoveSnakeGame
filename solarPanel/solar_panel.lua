@@ -346,8 +346,8 @@ function SolarPanel.update(dt)
     mouseY >= StaticImage.buttonY and mouseY <= (StaticImage.buttonY + StaticImage.buttonHeight)-300 and SolarPanel.selected == nil then
      SolarPanel.checkConnections()
  end
- local isWithinNextLevelBounds = mouseX >= 100 and mouseX <= 100 + StaticImage.buttonWidth and
-                                mouseY >= 100 and mouseY <= (100 + StaticImage.buttonHeight)-300
+ local isWithinNextLevelBounds = mouseX >= 350 and mouseX <= 350 + StaticImage.buttonWidth and
+                                mouseY >= 350 and mouseY <= (350 + StaticImage.buttonHeight)-300
  if (love.mouse.isDown(1) and isWithinNextLevelBounds and StaticImage.isLightOn) then
     SolarPanel.nextLevel()
  end
@@ -479,10 +479,10 @@ function SolarPanel.draw()
         -- Draw lit classroom
         love.graphics.draw(StaticImage.schoolLightOn, 0, 0, 0, love.graphics.getWidth() / StaticImage.schoolLightOn:getWidth(), love.graphics.getHeight() / StaticImage.schoolLightOn:getHeight())
 
-        buttonX = 100
-        buttonY = 100
+        buttonX = 350
+        buttonY = 350
         -- Draw a rectangle for the button
-        love.graphics.setColor(0.5, 0.5, 0.5) -- Set button color (gray)
+        love.graphics.setColor(0.2, 0.2, 0.2) -- Set button color (gray)
         love.graphics.rectangle("fill", buttonX, buttonY, buttonWidth, buttonHeight)
 
         -- Draw the text in the center of the button
